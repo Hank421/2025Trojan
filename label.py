@@ -31,7 +31,7 @@ def process_files(txt_file_path, csv_file_path, label_csv_file_path):
     # Save the updated DataFrame to a new CSV file
     output_csv_path = label_csv_file_path
     df.to_csv(output_csv_path, index=False)
-    print(f"Processed file saved to: {output_csv_path}")
+    print(f"Training file saved to: {output_csv_path}")
 
 # Main function to handle user input for file paths
 def main():

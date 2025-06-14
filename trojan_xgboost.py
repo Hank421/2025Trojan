@@ -70,7 +70,7 @@ def train_and_test(train_files, test_files):
     y_probs = model.predict_proba(X_test)[:, 1]
 
     # Lower threshold to favor detecting Trojans
-    y_pred = (y_probs > 0.3).astype(int)
+    y_pred = (y_probs > 0.5).astype(int)
 
     # Now check F1
     print("Trojan F1-score:", f1_score(y_test, y_pred, pos_label=1))
@@ -82,8 +82,16 @@ def train_and_test(train_files, test_files):
     df_test['predicted'] = df_test['predicted'].map({0: 'Not_Trojan', 1: 'Trojan'})
     df_test.to_csv("test_predictions_output.csv", index=False)
     
-    plot_importance(model)
-    plt.savefig("feature_importance.png")
+    plot_importance(model, importance_type='weight', max_num_features=50)
+    plt.savefig("feature_importance.png", bbox_inches='tight')
+    # List all feature names and their importances
+    importances = model.feature_importances_
+    feature_names = model.feature_names_in_
+
+    # Display feature names and their corresponding importances
+    print("\n=== Feature Importances ===")
+    for feature, importance in zip(feature_names, importances):
+        print(f"Feature: {feature}, Importance: {importance}")
 
     return model  # if you want to reuse the model
 
@@ -93,7 +101,9 @@ def train_and_test(train_files, test_files):
 
 if __name__ == "__main__":
     # Choose your files here
-    train_files = [f"training_data_w_label/design{i}_label.csv" for i in range(0, 10)]
-    test_files = [f"training_data_w_label/design{i}_label.csv" for i in range(10, 20)]
+    train_id = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 21, 22, 23, 24, 25]
+    test_id = [16, 17, 18, 19, 20, 26, 27, 28, 29]
+    train_files = [f"training_data_w_label/design{i}_label.csv" for i in train_id]
+    test_files = [f"training_data_w_label/design{i}_label.csv" for i in test_id]
 
     train_and_test(train_files, test_files)
