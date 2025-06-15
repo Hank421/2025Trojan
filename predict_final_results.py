@@ -28,18 +28,29 @@ def predict_and_save_results(test_files, model, le_gate_type):
 
         # Predict and store results
         y_probs = model.predict_proba(df)[:, 1]  # Get probabilities for the positive class (Trojan)
-        y_pred = (y_probs > 0.75).astype(int) # Thresholding at 0.75 for Trojan detection
+        
+        # result_df = pd.DataFrame({
+        #     'gate_name': df_w_gate_name['gate_name'],
+        #     'y_probs': y_probs
+        # })
+        # result_df_sorted = result_df.sort_values(by='y_probs', ascending=False).reset_index(drop=True)
+        # if design_id == 'design11': 
+        #     print(result_df_sorted)
+
+        y_pred = (y_probs > 0.5).astype(int) # Thresholding at 0.75 for Trojan detection
+        # sum_y_probs = y_probs.sum()
+        # avg_y_probs = sum_y_probs / len(y_probs)
 
         # Create a dictionary of gate_name to predicted result
-        for gate_name, prediction in zip(df_w_gate_name['gate_name'], y_pred):
-            gate_name_to_prediction[gate_name] = 'Trojan' if prediction == 1 else 'Not_Trojan'
+        for gate_name, gate_type, prediction in zip(df_w_gate_name['gate_name'], df_w_gate_name['gate_type'], y_pred):
+            gate_name_to_prediction[gate_name] = 'Trojan' if (prediction == 1) else 'Not_Trojan'
 
         # Create the output filename based on the design ID
         output_filename = f"predict/{design_id}_predict.txt"
         
         with open(output_filename, 'w') as f:
             trojan_gates = [gate_name for gate_name, pred in gate_name_to_prediction.items() if pred == 'Trojan']
-            if len(trojan_gates) == 0:
+            if len(trojan_gates) <= 15: # Threshold for No Trojan design
                 f.write("NO_TROJAN")
             else:
                 # Write the header

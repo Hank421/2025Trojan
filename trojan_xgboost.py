@@ -112,8 +112,8 @@ def train_and_test(train_files, test_files):
 
 if __name__ == "__main__":
     # Choose your files here
-    train_id = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 20, 21, 22, 23, 24]
-    test_id = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 26, 27, 28, 29]
+    train_id = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 20, 21, 24, 28, 29]
+    test_id = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 25, 26, 27]
     train_files = [f"training_data_w_label/design{i}_label.csv" for i in train_id]
     test_files = [f"training_data_w_label/design{i}_label.csv" for i in test_id]
 

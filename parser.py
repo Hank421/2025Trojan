@@ -87,7 +87,7 @@ def build_gate_graphs(gate_inputs, gate_outputs, gate_name_to_type):
         # Find the gates that feed into this gate's output (fanin)
         for other_gate, other_inputs in gate_inputs.items():
             if out in other_inputs:
-                fanin[gate].append(other_gate)  # other_gate feeds into gate's output
+                fanout[gate].append(other_gate)
     # For each gate, find the gates it drives (fanout)
     for gate, out in gate_outputs.items():
         if gate_name_to_type.get(gate) == 'dff':
@@ -97,7 +97,7 @@ def build_gate_graphs(gate_inputs, gate_outputs, gate_name_to_type):
         # Find the gates that are driven by this gate's output (fanout)
         for other_gate, other_out in gate_outputs.items():
             if other_out in ins:
-                fanout[gate].append(other_gate)  # gate feeds into other_gate
+                fanin[gate].append(other_gate)
     return fanin, fanout
 
 def bfs(source_set, graph):
