@@ -152,6 +152,23 @@ def main():
     fanin_graph, fanout_graph = build_graphs(gate_inputs, gate_outputs)
     gate_fanin_graph, gate_fanout_graph = build_gate_graphs(gate_inputs, gate_outputs, gate_name_to_type)
 
+    #　build pre-level, post-level dictionaries
+    pre_level = defaultdict(lambda: defaultdict(int))
+    post_level = defaultdict(lambda: defaultdict(int))
+
+    for this_gate, input_gates in gate_fanin_graph.items():
+        for input_gate in input_gates:
+            if gate_name_to_type[input_gate] in pre_level[this_gate]:
+                pre_level[this_gate][gate_name_to_type[input_gate]] += 1
+            else:
+                pre_level[this_gate][gate_name_to_type[input_gate]] = 1
+    for this_gate, output_gates in gate_fanout_graph.items():
+        for output_gate in output_gates:
+            if gate_name_to_type[output_gate] in post_level[this_gate]:
+                post_level[this_gate][gate_name_to_type[output_gate]] += 1
+            else:
+                post_level[this_gate][gate_name_to_type[output_gate]] = 1
+
     # Perform BFS to find levels of fanin and fanout
     lvl_from_input = bfs(primary_inputs, fanout_graph)
     lvl_to_output = bfs(primary_outputs, fanin_graph)
@@ -181,9 +198,13 @@ def main():
         'input_count', 'is_sequential', 'is_constant_input', 'has_bus_signal',
         'level_to_input', 'level_to_output', 'level_to_output_ff', 'level_to_input_ff',
         'and_gates_fanin', 'or_gates_fanin', 'nand_gates_fanin', 'nor_gates_fanin', 
-        'not_gates_fanin', 'buf_gates_fanin', 'xor_gates_fanin', 'xnor_gates_fanin', 'diff_gates_fanin',
+        'not_gates_fanin', 'buf_gates_fanin', 'xor_gates_fanin', 'xnor_gates_fanin', 'dff_gates_fanin',
         'and_gates_fanout', 'or_gates_fanout', 'nand_gates_fanout', 'nor_gates_fanout', 
-        'not_gates_fanout', 'buf_gates_fanout', 'xor_gates_fanout', 'xnor_gates_fanout', 'diff_gates_fanout'
+        'not_gates_fanout', 'buf_gates_fanout', 'xor_gates_fanout', 'xnor_gates_fanout', 'dff_gates_fanout',
+        'and_gates_prelevel', 'or_gates_prelevel', 'nand_gates_prelevel', 'nor_gates_prelevel', 
+        'not_gates_prelevel', 'buf_gates_prelevel', 'xor_gates_prelevel', 'xnor_gates_prelevel', 'dff_gates_prelevel',
+        'and_gates_postlevel', 'or_gates_postlevel', 'nand_gates_postlevel', 'nor_gates_postlevel', 
+        'not_gates_postlevel', 'buf_gates_postlevel', 'xor_gates_postlevel', 'xnor_gates_postlevel', 'dff_gates_postlevel'
     ]
 
     # Write the CSV file
@@ -192,7 +213,6 @@ def main():
         writer.writeheader()
 
         for gate_name, gate_type, out, ins in gates:
-            # print(gate_name, gate_type, gate_type_count_fanin[gate_name],  gate_type_count_fanout[gate_name])
             row = {
                 'gate_name': gate_name,
                 'gate_type': gate_type,
@@ -214,7 +234,7 @@ def main():
                 'buf_gates_fanin': gate_type_count_fanin[gate_name].get('buf', 0),
                 'xor_gates_fanin': gate_type_count_fanin[gate_name].get('xor', 0),
                 'xnor_gates_fanin': gate_type_count_fanin[gate_name].get('xnor', 0),
-                'diff_gates_fanin': gate_type_count_fanin[gate_name].get('dff', 0),
+                'dff_gates_fanin': gate_type_count_fanin[gate_name].get('dff', 0),
                 'and_gates_fanout': gate_type_count_fanout[gate_name].get('and', 0),
                 'or_gates_fanout': gate_type_count_fanout[gate_name].get('or', 0),
                 'nand_gates_fanout': gate_type_count_fanout[gate_name].get('nand', 0),
@@ -223,7 +243,25 @@ def main():
                 'buf_gates_fanout': gate_type_count_fanout[gate_name].get('buf', 0),
                 'xor_gates_fanout': gate_type_count_fanout[gate_name].get('xor', 0),
                 'xnor_gates_fanout': gate_type_count_fanout[gate_name].get('xnor', 0),
-                'diff_gates_fanout': gate_type_count_fanout[gate_name].get('dff', 0)
+                'dff_gates_fanout': gate_type_count_fanout[gate_name].get('dff', 0),
+                'and_gates_prelevel': gate_type_count_fanin[gate_name].get('and', 0),
+                'or_gates_prelevel': pre_level[gate_name].get('or', 0),
+                'nand_gates_prelevel': pre_level[gate_name].get('nand', 0),
+                'nor_gates_prelevel': pre_level[gate_name].get('nor', 0),
+                'not_gates_prelevel': pre_level[gate_name].get('not', 0),
+                'buf_gates_prelevel': pre_level[gate_name].get('buf', 0),
+                'xor_gates_prelevel': pre_level[gate_name].get('xor', 0),
+                'xnor_gates_prelevel': pre_level[gate_name].get('xnor', 0),
+                'dff_gates_prelevel': pre_level[gate_name].get('dff', 0),
+                'and_gates_postlevel': post_level[gate_name].get('and', 0),
+                'or_gates_postlevel': post_level[gate_name].get('or', 0),
+                'nand_gates_postlevel': post_level[gate_name].get('nand', 0),
+                'nor_gates_postlevel': post_level[gate_name].get('nor', 0),
+                'not_gates_postlevel': post_level[gate_name].get('not', 0),
+                'buf_gates_postlevel': post_level[gate_name].get('buf', 0),
+                'xor_gates_postlevel': post_level[gate_name].get('xor', 0),
+                'xnor_gates_postlevel': post_level[gate_name].get('xnor', 0),
+                'dff_gates_postlevel': post_level[gate_name].get('dff', 0)
             }
             writer.writerow(row)
     print(f"Processed file saved to: {args.output_file}")
