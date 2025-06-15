@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt
 from xgboost import plot_importance
 from sklearn.metrics import f1_score
+import joblib
 
 # ---------------------------
 # Function: Load, Train, Test
@@ -61,6 +62,14 @@ def train_and_test(train_files, test_files):
     )
     model.fit(X_train, y_train)
     y_pred = model.predict(X_train)
+
+    # Save the model to a file
+    joblib.dump(model, 'xgb_model.pkl')
+    print("\nModel saved as xgb_model.pkl\n")
+    # Save the fitted LabelEncoder
+    joblib.dump(le_gate_type, 'le_gate_type.pkl')
+    print("\nLabelEncoder saved as le_gate_type.pkl\n")
+
     print("=== Training Classification Report ===")
     print(classification_report(y_train, y_pred))
 
@@ -84,6 +93,7 @@ def train_and_test(train_files, test_files):
     
     plot_importance(model, importance_type='weight', max_num_features=50)
     plt.savefig("feature_importance.png", bbox_inches='tight')
+    
     # List all feature names and their importances
     importances = model.feature_importances_
     feature_names = model.feature_names_in_
@@ -101,8 +111,8 @@ def train_and_test(train_files, test_files):
 
 if __name__ == "__main__":
     # Choose your files here
-    train_id = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 21, 22, 23, 24, 25]
-    test_id = [16, 17, 18, 19, 20, 26, 27, 28, 29]
+    train_id = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 20, 21, 22, 23, 24]
+    test_id = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 26, 27, 28, 29]
     train_files = [f"training_data_w_label/design{i}_label.csv" for i in train_id]
     test_files = [f"training_data_w_label/design{i}_label.csv" for i in test_id]
 
