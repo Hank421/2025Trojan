@@ -29,7 +29,7 @@ def predict_and_save_results(test_files, model, le_gate_type):
 
         # Predict and store results
         y_probs = model.predict_proba(df)[:, 1]  # Get probabilities for the positive class (Trojan)
-        y_pred = (y_probs > 0.8).astype(int) # Thresholding at 0.8 for Trojan detection
+        y_pred = (y_probs > 0.95).astype(int) # Thresholding at 0.75 for Trojan detection
 
         # Create a dictionary of gate_name to predicted result
         for gate_name, prediction in zip(df_w_gate_name['gate_name'], y_pred):

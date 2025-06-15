@@ -92,9 +92,11 @@ def build_gate_graphs(gate_inputs, gate_outputs, gate_name_to_type):
     for gate, out in gate_outputs.items():
         if gate_name_to_type.get(gate) == 'dff':
             continue  # Skip DFFs for fanin/fanout analysis
+        # The inputs of this gate
+        ins = gate_inputs[gate]
         # Find the gates that are driven by this gate's output (fanout)
-        for other_gate, ins in gate_inputs.items():
-            if out in ins:
+        for other_gate, other_out in gate_outputs.items():
+            if other_out in ins:
                 fanout[gate].append(other_gate)  # gate feeds into other_gate
     return fanin, fanout
 
