@@ -92,6 +92,7 @@ def train_and_test(train_files, test_files):
     df_test.to_csv("test_predictions_output.csv", index=False)
     
     plot_importance(model, importance_type='weight', max_num_features=50)
+    plt.grid(False)
     plt.savefig("feature_importance.png", bbox_inches='tight')
     
     # List all feature names and their importances
