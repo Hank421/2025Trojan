@@ -79,7 +79,7 @@ def train_and_test(train_files, test_files):
     y_probs = model.predict_proba(X_test)[:, 1]
 
     # Lower threshold to favor detecting Trojans
-    y_pred = (y_probs > 0.5).astype(int)
+    y_pred = (y_probs > 0.5).astype(int) # Thresholding at 0.5 for Trojan detection
 
     # Now check F1
     print("Trojan F1-score:", f1_score(y_test, y_pred, pos_label=1))

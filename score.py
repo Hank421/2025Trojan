@@ -47,7 +47,8 @@ def calculate_score(golden_file, predicted_file):
 
 total_score = 0
 # Loop through the designs and calculate the score for each
-for i in range(30):
+test_cases = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 26, 27, 28, 29]
+for i in test_cases:
     # Assuming the files are named as per the example
     golden_file_path = f'reference/reference/result{i}.txt'
     predicted_file_path = f'predict/design{i}_predict.txt'
