@@ -1,10 +1,166 @@
+import re
 import pandas as pd
 import os
 import joblib
+from collections import defaultdict, deque
+
+# design numbers and their corresponding Verilog file paths
+design2v = {
+    'design0': 'release(20250520)/release/design0.v',
+    'design1': 'release(20250520)/release/design1.v',
+    'design2': 'release(20250520)/release/design2.v',
+    'design3': 'release(20250520)/release/design3.v',
+    'design4': 'release(20250520)/release/design4.v',
+    'design5': 'release(20250520)/release/design5.v',
+    'design6': 'release(20250520)/release/design6.v',
+    'design7': 'release(20250520)/release/design7.v',
+    'design8': 'release(20250520)/release/design8.v',
+    'design9': 'release(20250520)/release/design9.v',
+    'design10': 'release(20250522)/release2/trojan_design/design10.v',
+    'design11': 'release(20250522)/release2/trojan_design/design11.v',
+    'design12': 'release(20250522)/release2/trojan_design/design12.v',
+    'design13': 'release(20250522)/release2/trojan_design/design13.v',
+    'design14': 'release(20250522)/release2/trojan_design/design14.v',
+    'design15': 'release(20250522)/release2/trojan_design/design15.v',
+    'design16': 'release(20250522)/release2/trojan_design/design16.v',
+    'design17': 'release(20250522)/release2/trojan_design/design17.v',
+    'design18': 'release(20250522)/release2/trojan_design/design18.v',
+    'design19': 'release(20250522)/release2/trojan_design/design19.v',
+    'design20': 'release(20250522)/release2/trojan_free/design20.v',
+    'design21': 'release(20250522)/release2/trojan_free/design21.v',
+    'design22': 'release(20250522)/release2/trojan_free/design22.v',
+    'design23': 'release(20250522)/release2/trojan_free/design23.v',
+    'design24': 'release(20250522)/release2/trojan_free/design24.v',
+    'design25': 'release(20250522)/release2/trojan_free/design25.v',
+    'design26': 'release(20250522)/release2/trojan_free/design26.v',
+    'design27': 'release(20250522)/release2/trojan_free/design27.v',
+    'design28': 'release(20250522)/release2/trojan_free/design28.v',
+    'design29': 'release(20250522)/release2/trojan_free/design29.v'
+}
 
 # ---------------------------
 # Function: Predict and Save Results as txt files
 # ---------------------------
+
+def extract_signals(line):
+    # support input/output/wire declarations
+    line = line.replace(';', '').strip()
+    range_match = re.search(r'\[(\d+):(\d+)\]', line)
+    if range_match:
+        msb, lsb = map(int, range_match.groups())
+        signals = line[range_match.end():].split(',')
+        result = []
+        for sig in signals:
+            base = sig.strip()
+            for i in range(lsb, msb + 1):
+                result.append(f"{base}[{i}]")
+        return result
+    else:
+        return [sig.strip() for sig in re.split(r',\s*', line.split()[-1]) if sig.strip()]
+
+def parse_verilog_with_gate_type(lines):
+    gates = []
+    gate_inputs = {}
+    gate_outputs = {}
+
+    primary_inputs, primary_outputs = set(), set()
+    dff_inputs, dff_outputs = set(), set()
+
+    gate_name_to_type = {}  # Mapping from gate name to its type
+
+    for line in lines:
+        line = line.strip().rstrip(';')
+
+        if line.startswith('input'):
+            primary_inputs.update(extract_signals(line))
+        elif line.startswith('output'):
+            primary_outputs.update(extract_signals(line))
+
+        m = re.match(r'(\w+)\s+(g\d+)\((.*)\)', line)
+        if not m:
+            continue
+        gate_type, gate_name, arg_string = m.groups()
+        gate_name_to_type[gate_name] = gate_type  # Mapping gate name to type
+
+        if '.' in arg_string:  # Named port style (dff)
+            args = dict(re.findall(r'\.(\w+)\(([^)]+)\)', arg_string))
+            output = args.get('Q', '')
+            inputs = [v for k, v in args.items() if k != 'Q']
+            if 'D' in args: dff_inputs.add(args['D'])
+            if 'Q' in args: dff_outputs.add(args['Q'])
+        else:
+            parts = [x.strip() for x in arg_string.split(',')]
+            output, inputs = parts[0], parts[1:]
+
+        gates.append((gate_name, gate_type, output, inputs))
+        gate_inputs[gate_name] = inputs
+        gate_outputs[gate_name] = output
+
+    return gates, gate_inputs, gate_outputs, primary_inputs, primary_outputs, dff_inputs, dff_outputs, gate_name_to_type
+
+def build_gate_graphs(gate_inputs, gate_outputs, gate_name_to_type):
+    fanin = defaultdict(list)
+    fanout = defaultdict(list)
+    # For each gate, find the gates feeding into it (fanin)
+    for gate, ins in gate_inputs.items():
+        if gate_name_to_type.get(gate) == 'dff':
+            continue  # Skip DFFs for fanin/fanout analysis
+        # The output of this gate
+        out = gate_outputs[gate]
+        # Find the gates that feed into this gate's output (fanin)
+        for other_gate, other_inputs in gate_inputs.items():
+            if out in other_inputs:
+                fanout[gate].append(other_gate)
+    # For each gate, find the gates it drives (fanout)
+    for gate, out in gate_outputs.items():
+        if gate_name_to_type.get(gate) == 'dff':
+            continue  # Skip DFFs for fanin/fanout analysis
+        # The inputs of this gate
+        ins = gate_inputs[gate]
+        # Find the gates that are driven by this gate's output (fanout)
+        for other_gate, other_out in gate_outputs.items():
+            if other_out in ins:
+                fanin[gate].append(other_gate)
+    return fanin, fanout
+
+def get_all_connected_gates_with_prob_check_iterative(gate_name, gate_fanin_graph, gate_fanout_graph, gate_name_probs_dict, prob1):
+    visited = set()  # Initialize a set of visited gates
+    queue = deque([gate_name])  # Queue for BFS, starting with the current gate
+    connected_gates = set()
+
+    # Check if the gate's probability is greater than prob1
+    current_prob = gate_name_probs_dict.get(gate_name, 0)  # Default to 0 if not in the dictionary
+    if current_prob <= prob1:
+        return set()  # Return an empty set if the probability is not greater than prob1
+
+    while queue:
+        current_gate = queue.popleft()
+        if current_gate not in visited:
+            visited.add(current_gate)
+            connected_gates.add(current_gate)
+
+            # Add fanin gates to the queue
+            if current_gate in gate_fanin_graph:
+                for fanin_gate in gate_fanin_graph[current_gate]:
+                    if fanin_gate not in visited:
+                        queue.append(fanin_gate)
+
+            # Add fanout gates to the queue
+            if current_gate in gate_fanout_graph:
+                for fanout_gate in gate_fanout_graph[current_gate]:
+                    if fanout_gate not in visited:
+                        queue.append(fanout_gate)
+
+    return connected_gates
+
+def determine_trojan_gate(gate_name, gate_type, gate_name_probs_dict, gate_fanin_graph, gate_fanout_graph, prob1, prob2, groups_limit):
+    if gate_name_probs_dict.get(gate_name, 0) > prob2: # if the gate's probability is greater than prob2, it is definitely a Trojan
+        return 'Trojan'
+    if len(get_all_connected_gates_with_prob_check_iterative(gate_name, gate_fanin_graph, gate_fanout_graph, gate_name_probs_dict, prob1)) >= groups_limit:
+        return 'Trojan'
+    else:
+        return 'Not_Trojan'
+    # return 'Trojan' if (gate_name_probs_dict[gate_name] > prob1) else 'Not_Trojan'
 
 def predict_and_save_results(test_files, model, le_gate_type):
     drop_cols = ['output', 'inputs', 'gate_numbers', 'design_id', 'gate_name']
@@ -29,21 +185,28 @@ def predict_and_save_results(test_files, model, le_gate_type):
         # Predict and store results
         y_probs = model.predict_proba(df)[:, 1]  # Get probabilities for the positive class (Trojan)
         
-        # result_df = pd.DataFrame({
-        #     'gate_name': df_w_gate_name['gate_name'],
-        #     'y_probs': y_probs
-        # })
-        # result_df_sorted = result_df.sort_values(by='y_probs', ascending=False).reset_index(drop=True)
-        # if design_id == 'design11': 
-        #     print(result_df_sorted)
+        # Load the Verilog file
+        with open(design2v[design_id], 'r') as f:
+            verilog_lines = f.readlines()
 
-        y_pred = (y_probs > 0.5).astype(int) # Thresholding at 0.75 for Trojan detection
-        # sum_y_probs = y_probs.sum()
-        # avg_y_probs = sum_y_probs / len(y_probs)
+        # Parse the Verilog file
+        gates, gate_inputs, gate_outputs, primary_inputs, primary_outputs, dff_inputs, dff_outputs, gate_name_to_type = parse_verilog_with_gate_type(verilog_lines)
+
+        # Build fanin and fanout graphs
+        gate_fanin_graph, gate_fanout_graph = build_gate_graphs(gate_inputs, gate_outputs, gate_name_to_type)
+
+        # y_pred = (y_probs > 0.5).astype(int) # Thresholding at 0.75 for Trojan detection
+
+        gate_name_probs_dict = dict(zip(df_w_gate_name['gate_name'], y_probs))
+        
+        # Set the probabilities for determining Trojan gates
+        prob1 = 0.5 # all gates with probability > prob1 are considered Trojan candidates
+        prob2 = 0.8 # all gates with probability > prob2 are considered Trojan
+        groups_limit = 3  # if a gate has more than groups_limit connected gates (in candidates or Trojan), it is considered Trojan
 
         # Create a dictionary of gate_name to predicted result
-        for gate_name, gate_type, prediction in zip(df_w_gate_name['gate_name'], df_w_gate_name['gate_type'], y_pred):
-            gate_name_to_prediction[gate_name] = 'Trojan' if (prediction == 1) else 'Not_Trojan'
+        for gate_name, gate_type in zip(df_w_gate_name['gate_name'], df_w_gate_name['gate_type']):
+            gate_name_to_prediction[gate_name] = determine_trojan_gate(gate_name, gate_type, gate_name_probs_dict, gate_fanin_graph, gate_fanout_graph, prob1, prob2, groups_limit)
 
         # Create the output filename based on the design ID
         output_filename = f"predict/{design_id}_predict.txt"
