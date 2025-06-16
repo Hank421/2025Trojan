@@ -1,7 +1,5 @@
 TROJANED
 TROJAN_GATES
-g5
-g10
 g28
 g40
 g72
@@ -17,7 +15,6 @@ g189
 g201
 g224
 g236
-g242
 g255
 g262
 g272
@@ -28,7 +25,6 @@ g296
 g325
 g337
 g338
-g352
 g365
 g372
 END_TROJAN_GATES

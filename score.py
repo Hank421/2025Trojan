@@ -40,10 +40,10 @@ def calculate_score(golden_file, predicted_file):
     elif not golden_gates and predicted_gates:
         return 0
     elif not golden_gates and not predicted_gates:
-        return 1
+        return 2
     else:
         # Both contain TROJAN, calculate F1 score
-        return calculate_f1_score(golden_gates, predicted_gates)
+        return calculate_f1_score(golden_gates, predicted_gates) + 2
 
 total_score = 0
 # Loop through the designs and calculate the score for each
