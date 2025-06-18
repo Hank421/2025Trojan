@@ -4,6 +4,8 @@ import os
 import joblib
 from collections import defaultdict, deque
 import matplotlib.pyplot as plt
+from parser import build_gate_graphs
+import argparse
 # design numbers and their corresponding Verilog file paths
 design2v = {
     'design0': 'release(20250520)/release/design0.v',
@@ -41,6 +43,13 @@ design2v = {
 # ---------------------------
 # Function: Predict and Save Results as txt files
 # ---------------------------
+def argparse_setup():
+    parser = argparse.ArgumentParser(description="Predict Trojan gates in Verilog designs.")
+    parser.add_argument('--prob1', type=float, default=0.4,
+                        help="Threshold for Trojan gate candidates (default: 0.4)")
+    parser.add_argument('--prob2', type=float, default=0.75,
+                        help="Threshold for definite Trojan gates (default: 0.75)")
+    return parser.parse_args()
 
 def extract_signals(line):
     # support input/output/wire declarations
@@ -98,30 +107,30 @@ def parse_verilog_with_gate_type(lines):
 
     return gates, gate_inputs, gate_outputs, primary_inputs, primary_outputs, dff_inputs, dff_outputs, gate_name_to_type
 
-def build_gate_graphs(gate_inputs, gate_outputs, gate_name_to_type):
-    fanin = defaultdict(list)
-    fanout = defaultdict(list)
-    # For each gate, find the gates feeding into it (fanin)
-    for gate, ins in gate_inputs.items():
-        if gate_name_to_type.get(gate) == 'dff':
-            continue  # Skip DFFs for fanin/fanout analysis
-        # The output of this gate
-        out = gate_outputs[gate]
-        # Find the gates that feed into this gate's output (fanin)
-        for other_gate, other_inputs in gate_inputs.items():
-            if out in other_inputs:
-                fanout[gate].append(other_gate)
-    # For each gate, find the gates it drives (fanout)
-    for gate, out in gate_outputs.items():
-        if gate_name_to_type.get(gate) == 'dff':
-            continue  # Skip DFFs for fanin/fanout analysis
-        # The inputs of this gate
-        ins = gate_inputs[gate]
-        # Find the gates that are driven by this gate's output (fanout)
-        for other_gate, other_out in gate_outputs.items():
-            if other_out in ins:
-                fanin[gate].append(other_gate)
-    return fanin, fanout
+# def build_gate_graphs(gate_inputs, gate_outputs, gate_name_to_type):
+#     fanin = defaultdict(list)
+#     fanout = defaultdict(list)
+#     # For each gate, find the gates feeding into it (fanin)
+#     for gate, ins in gate_inputs.items():
+#         if gate_name_to_type.get(gate) == 'dff':
+#             continue  # Skip DFFs for fanin/fanout analysis
+#         # The output of this gate
+#         out = gate_outputs[gate]
+#         # Find the gates that feed into this gate's output (fanin)
+#         for other_gate, other_inputs in gate_inputs.items():
+#             if out in other_inputs:
+#                 fanout[gate].append(other_gate)
+#     # For each gate, find the gates it drives (fanout)
+#     for gate, out in gate_outputs.items():
+#         if gate_name_to_type.get(gate) == 'dff':
+#             continue  # Skip DFFs for fanin/fanout analysis
+#         # The inputs of this gate
+#         ins = gate_inputs[gate]
+#         # Find the gates that are driven by this gate's output (fanout)
+#         for other_gate, other_out in gate_outputs.items():
+#             if other_out in ins:
+#                 fanin[gate].append(other_gate)
+#     return fanin, fanout
 
 def neighbor_check_for_candidates(gate_name, gate_fanin_graph, gate_fanout_graph, gate_name_probs_dict, prob1):
     current_prob = gate_name_probs_dict.get(gate_name, 0)  # Default to 0 if not in the dictionary
@@ -147,9 +156,8 @@ def determine_trojan_gate(gate_name, gate_type, gate_name_probs_dict, gate_fanin
         return 'Not_Trojan'
     # return 'Trojan' if (gate_name_probs_dict[gate_name] > prob1) else 'Not_Trojan'
 
-def predict_and_save_results(test_files, model, le_gate_type):
+def predict_and_save_results(test_files, model, le_gate_type, prob1=0.4, prob2=0.95):
     drop_cols = ['output', 'inputs', 'gate_numbers', 'design_id', 'gate_name']
-    
     for file in test_files:
         df = pd.read_csv(file)
         design_id = os.path.basename(file).split('.')[0]  # Extract design ID from filename
@@ -185,33 +193,16 @@ def predict_and_save_results(test_files, model, le_gate_type):
         gate_name_probs_dict = dict(zip(df_w_gate_name['gate_name'], y_probs))
 
         # plot the distribution of probabilities (PDF)
-        # plt.figure(figsize=(10, 6))
-        # plt.hist(y_probs, bins=50, color='blue', alpha=0.7)
-        # plt.title(f'Probability Distribution for {design_id}')
-        # plt.xlabel('Probability of Trojan')
-        # plt.ylabel('Frequency')
-        # plt.grid()
-        # plt.savefig(f'predict_prob/{design_id}_probability_distribution.png')
+        # plot_pdf(y_probs, design_id)
 
-        # plot the distribution of probabilities (CDF)
-        # plt.figure(figsize=(10, 6))
-        # plt.hist(y_probs, bins=50, color='blue', alpha=0.7, cumulative=True, density=True)
-        # plt.title(f'Probability CDF for {design_id}')
-        # plt.xlabel('Probability of Trojan')
-        # plt.ylabel('Cumulative Frequency')
-        # plt.grid()
-        # plt.savefig(f'predict_prob/{design_id}_probability_cdf.png')
-
-
-        
         # Set the probabilities for determining Trojan gates 
-        prob1 = 0.5  # Threshold for Trojan gate candidates
-        prob2 = 0.75  # Threshold for definite Trojan gates
+        # prob1 is Threshold for Trojan gate candidates
+        # prob2 is Threshold for definite Trojan gates
         perctent99 = pd.Series(y_probs).quantile(0.99)  # Set prob2 as the 80th percentile of the probabilities
         perctent90 = pd.Series(y_probs).quantile(0.90)  # Set prob1 as the 90th percentile of the probabilities
-        if perctent99 < prob2 and perctent99 > 0.45:
+        if perctent99 < prob2 and perctent99 > 0.5:
             prob2 = perctent99
-            prob1 = pd.Series(y_probs).quantile(0.8)  # Set prob1 as the median of the probabilities
+            prob1 = perctent90 #pd.Series(y_probs).quantile(0.)  # Set prob1 as the median of the probabilities
 
 
         # Create a dictionary of gate_name to predicted result
@@ -223,7 +214,7 @@ def predict_and_save_results(test_files, model, le_gate_type):
         
         with open(output_filename, 'w') as f:
             trojan_gates = [gate_name for gate_name, pred in gate_name_to_prediction.items() if pred == 'Trojan']
-            if len(trojan_gates) <= 15: # Threshold for No Trojan design
+            if len(trojan_gates) <= 1: # Threshold for No Trojan design
                 f.write("NO_TROJAN")
             else:
                 # Write the header
@@ -238,6 +229,34 @@ def predict_and_save_results(test_files, model, le_gate_type):
                 f.write("END_TROJAN_GATES")
 
         print(f"Saved Trojan gates for {design_id} as {output_filename}")
+
+def plot_pdf(y_probs, design_id, accumulate=False):
+    plt.figure(figsize=(8, 6))
+
+    if accumulate:
+        # Plot cumulative distribution function (CDF)
+        plt.hist(y_probs, bins=50, color='blue', alpha=0.7, cumulative=True, density=True)
+        plt.title(f'Probability CDF for {design_id}')
+    else:
+        plt.hist(y_probs, bins=50, color='darkblue', alpha=0.8, edgecolor='black')
+        plt.title(f'Probability Distribution for {design_id}', fontsize=20, fontweight='bold')
+
+    # Customize x and y labels
+    plt.xlabel('Probability of Trojan', fontsize=16)
+    plt.ylabel('Frequency', fontsize=16)
+
+    # Improve grid lines: use a lighter color and make them more subtle
+    plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.6)
+
+    # Customize tick marks and their labels
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+
+    # Adjust the layout to ensure everything fits nicely
+    plt.tight_layout()
+
+    # Save the plot in the desired location with a high-quality format
+    plt.savefig(f'predict_prob/{design_id}_probability_distribution.png', dpi=300)
 
 # ---------------------------
 # Example Usage
@@ -257,4 +276,5 @@ if __name__ == "__main__":
 
 
     # Predict and save the results for each test file
-    predict_and_save_results(test_files, model, le_gate_type)
+    prob1, prob2 = argparse_setup().prob1, argparse_setup().prob2
+    predict_and_save_results(test_files, model, le_gate_type, prob1, prob2)
